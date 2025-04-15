@@ -1,0 +1,52 @@
+services:
+  postgres:
+    image: postgres:14
+    container_name: text2sql
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "55432:5432"
+    volumes:
+      - ./database/backup.sql:/docker-entrypoint-initdb.d/backup.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  e_commerce:
+    image: postgres:14
+    container_name: e_commerce
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "55433:5432"
+    volumes:
+      - ./database/backup_e_commerce.sql:/docker-entrypoint-initdb.d/backup_e_commerce.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  e_commerce_:
+    image: postgres:14
+    container_name: e_commerce_non_intuitive
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "55434:5432"
+    volumes:
+      - ./database/backup_e_commerce_non_intuitive.sql:/docker-entrypoint-initdb.d/backup_e_commerce_non_intuitive.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+

@@ -1,0 +1,10 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "mock_graph": "./text2sql/graphs/mock_graph.py:mock_graph",
+    "simple_llm_graph": "./text2sql/graphs/simple_llm_graph.py:simple_llm_graph",
+    "llm_graph_with_history": "./text2sql/graphs/llm_graph_with_history.py:llm_graph_with_history",
+    "sql_graph": "./text2sql/graphs/sql_graph.py:sql_graph"
+  },
+  "env": ".env"
+}

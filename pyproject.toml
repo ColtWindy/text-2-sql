@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "text2sql"
+version = "0.1.0"
+description = ""
+authors = ["coltwindy <coltwindy@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+streamlit = "^1.44.1"
+openai = "^1.70.0"
+langsmith = "^0.3.24"
+langgraph = "^0.3.27"
+langchain-community = "^0.3.21"
+langchain = "^0.3.23"
+langchain-openai = "^0.3.12"
+psycopg = {extras = ["binary"], version = "^3.2.6"}
+pandas = "^2.2.3"
+
+[tool.poetry.group.dev.dependencies]
+pandas-stubs = "^2.2.3.250308"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+# 타입 검사기 설정
+[tool.pyright]
+# 'Type annotation not supported' 오류 무시 - `messages: List[string] = []` 이 코드에서 타입 정보를 타입의 경고를 제거
+reportInvalidTypeForm = "none"

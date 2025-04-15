@@ -1,0 +1,11 @@
+**/__pycache__/
+.streamlit/secrets.toml
+.env
+.langgraph_api/
+.cursor/
+
+# project specific
+.cursorignore
+
+# large files
+database/
