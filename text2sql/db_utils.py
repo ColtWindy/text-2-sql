@@ -9,8 +9,8 @@ from typing import List, Tuple, Dict, Any, Optional, Union
 
 def connect_to_db(
     host: str = "localhost",
-    # port: int = 55432,
-    port: int = 55434,
+    # port: int = 55433, # e_commerce
+    port: int = 55434, # e_commerce_nonintuitive
     dbname: str = "postgres",
     user: str = "postgres",
     password: str = "postgres",
@@ -19,7 +19,7 @@ def connect_to_db(
     PostgreSQL 데이터베이스에 연결합니다.
 
     Args:
-        host: 데이터베이스 호스트
+
         port: 데이터베이스 포트
         dbname: 데이터베이스 이름
         user: 사용자 이름

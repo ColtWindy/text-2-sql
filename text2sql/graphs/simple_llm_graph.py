@@ -2,7 +2,6 @@ from typing import TypedDict
 from langgraph.graph import StateGraph
 from langchain_openai import ChatOpenAI
 from langchain.schema import HumanMessage
-from enum import Enum
 
 
 # 노드 이름을 str과 Enum을 상속받아 정의
