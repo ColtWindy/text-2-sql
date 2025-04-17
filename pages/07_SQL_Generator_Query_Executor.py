@@ -12,6 +12,7 @@ from text2sql.openai_utils import (
     initialize_models,
     refresh_models,
 )
+from text2sql.components import model_selector
 from text2sql.db_utils import execute_query, get_all_tables, get_table_schema
 
 # 페이지 설정
@@ -166,6 +167,10 @@ initialize_state()
 
 # 사이드바에 스키마 정보와 추가 컨텍스트 선택 UI 표시
 with st.sidebar:
+
+    # 모델 선택기 컴포넌트 사용
+    model_selector(state)
+
     # DB 스키마 정보
     with st.expander("데이터베이스 스키마 정보"):
         if st.button("DB 스키마 다시 조회"):
@@ -184,6 +189,7 @@ with st.sidebar:
 
     # 추가 컨텍스트 파일 선택 UI
     with st.expander("추가 컨텍스트 파일 선택"):
+
         # 파일 목록 가져오기
         file_options = get_extra_files()
 
@@ -233,27 +239,6 @@ with st.sidebar:
                     st.success("추가 컨텍스트가 적용되었습니다.")
                     st.rerun()
 
-# 모델 정보
-with st.expander("현재 설정"):
-    st.write(f"현재 모델: {state.selected_model}")
-
-    # 모델 목록 새로고침 버튼
-    if st.button("모델 목록 새로고침"):
-        if refresh_models(state):
-            st.success("모델 목록이 업데이트되었습니다!")
-            st.rerun()
-        else:
-            st.error("모델 목록 업데이트에 실패했습니다.")
-
-# 모델 선택 UI
-if state.available_models:
-    selected_index = (
-        state.available_models.index(state.selected_model)
-        if state.selected_model in state.available_models
-        else 0
-    )
-    selected_model = st.selectbox("모델:", state.available_models, index=selected_index)
-    state.selected_model = selected_model  # 선택한 모델 저장
 
 # 대화 초기화 버튼
 if st.button("대화 초기화"):
@@ -309,7 +294,7 @@ if prompt:
                     full_response += chunk.choices[0].delta.content
                     message_placeholder.markdown(full_response + "▌")
 
-            message_placeholder.markdown(f"```sql\n{full_response}\n```")
+            message_placeholder.markdown(full_response)
 
             # 응답 저장
             messages = state.get("sql_messages")

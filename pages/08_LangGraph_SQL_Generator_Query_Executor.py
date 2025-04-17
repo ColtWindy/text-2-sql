@@ -10,6 +10,7 @@ from text2sql import AppState
 from text2sql.openai_utils import initialize_models, refresh_models
 from text2sql.db_utils import execute_query, get_all_tables, get_table_schema
 from text2sql.graphs.sql_graph import sql_graph
+from text2sql.components import model_selector
 
 # 페이지 설정
 st.title("LangGraph SQL 생성 및 실행기")
@@ -125,6 +126,9 @@ initialize_langgraph_state()
 
 # 사이드바에 스키마 정보와 추가 컨텍스트 선택 UI 표시
 with st.sidebar:
+    # 모델 선택기 컴포넌트 사용
+    model_selector(state)
+
     # DB 스키마 정보
     with st.expander("데이터베이스 스키마 정보"):
         # 데이터베이스 테이블 정보 동적으로 가져오기
@@ -143,6 +147,7 @@ with st.sidebar:
 
     # 추가 컨텍스트 파일 선택 UI
     with st.expander("추가 컨텍스트 파일 선택"):
+
         # 파일 목록 가져오기
         file_options = get_extra_files()
 
@@ -190,27 +195,6 @@ with st.sidebar:
                 st.success("추가 컨텍스트가 적용되었습니다.")
                 st.rerun()
 
-# 모델 정보 표시 (접기 가능)
-with st.expander("현재 설정"):
-    st.write(f"현재 모델: {state.selected_model}")
-
-    # 모델 목록 새로고침 버튼
-    if st.button("모델 목록 새로고침"):
-        if refresh_models(state):
-            st.success("모델 목록이 업데이트되었습니다!")
-            st.rerun()  # 페이지 새로고침
-        else:
-            st.error("모델 목록 업데이트에 실패했습니다.")
-
-# 모델 선택 UI
-if state.available_models:
-    selected_index = (
-        state.available_models.index(state.selected_model)
-        if state.selected_model in state.available_models
-        else 0
-    )
-    selected_model = st.selectbox("모델:", state.available_models, index=selected_index)
-    state.selected_model = selected_model  # 선택한 모델 저장
 
 # 대화 초기화 버튼
 if st.button("대화 초기화"):
@@ -386,60 +370,37 @@ with tab2:
                 # 오류 정보를 LangGraph로 전달하고 처리 결과 가져오기
                 error_result = sql_graph.invoke(langgraph_state)
 
-                # 새로운 응답이 있다면 history 업데이트
-                if error_result.get("llm_response"):
-                    state.set("sql_history", error_result["history"])
-                    # 세션 상태에도 직접 저장
-                    st.session_state.sql_history = error_result["history"]
+                if error_result.get("sql") and error_result["sql"] != sql_query:
+                    st.success("수정된 SQL 쿼리를 생성했습니다:")
+                    st.code(error_result["sql"], language="sql")
+                    st.button(
+                        "수정된 쿼리 적용",
+                        on_click=lambda: st.session_state.update(
+                            {"fixed_sql": error_result["sql"]}
+                        ),
+                    )
 
-            # 결과 처리
-            elif not results or len(results) <= 1:  # 컬럼명만 있고 데이터가 없는 경우
-                st.info("쿼리가 성공적으로 실행되었지만 반환된 결과가 없습니다.")
             else:
-                # 성공적인 결과 표시
-                row_count = len(results) - 1  # 첫 번째 행은 컬럼명
-                st.success(f"쿼리 실행 성공: {row_count}개의 결과를 찾았습니다.")
+                # 결과 처리
+                if not results or len(results) <= 1:  # 컬럼명만 있고 데이터가 없는 경우
+                    st.info("쿼리가 성공적으로 실행되었지만 반환된 결과가 없습니다.")
+                else:
+                    # 성공적인 결과 표시
+                    row_count = len(results) - 1  # 첫 번째 행은 컬럼명
+                    st.success(f"쿼리 실행 성공: {row_count}개의 결과를 찾았습니다.")
 
-                # 첫 번째 행을 컬럼명으로 사용
-                columns = results[0]
-                # 첫 번째 행을 제외한 나머지를 데이터로 사용
-                data = results[1:]
+                    # 결과를 데이터프레임으로 변환하여 표시
+                    columns = results[0]
+                    data = results[1:]
+                    df = pd.DataFrame(data, columns=columns)
+                    st.dataframe(df)
 
-                # 결과를 데이터프레임으로 변환하여 표시
-                df = pd.DataFrame(data, columns=columns)
-                st.dataframe(df)
-
-                # CSV 다운로드 버튼 추가
-                csv = df.to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    "CSV로 다운로드",
-                    csv,
-                    "query_results.csv",
-                    "text/csv",
-                    key="download-csv-manual",
-                )
-
-                # LangGraph 상태에 성공 정보 추가
-                langgraph_state = {
-                    "question": "쿼리 실행 결과",
-                    "schema": state.get("db_schema", ""),
-                    "context": state.get("context", ""),
-                    "sql": sql_query,
-                    "error": None,
-                    "result": results,  # 실제 결과 전달
-                    "history": state.get("sql_history", []),
-                    "model": state.selected_model,
-                    "llm_response": None,  # LLM 응답 초기화
-                }
-
-                # 성공 정보를 LangGraph로 전달
-                success_result = sql_graph.invoke(langgraph_state)
-
-                # 새로운 응답이 있다면 history 업데이트
-                if success_result.get("llm_response"):
-                    state.set("sql_history", success_result["history"])
-                    # 세션 상태에도 직접 저장
-                    st.session_state.sql_history = success_result["history"]
-
-                state.set("query_result", results)
-                state.set("query_error", None)
+                    # CSV 다운로드 버튼 추가
+                    csv = df.to_csv(index=False).encode("utf-8")
+                    st.download_button(
+                        "CSV로 다운로드",
+                        csv,
+                        "query_results.csv",
+                        "text/csv",
+                        key="download-csv-manual",
+                    )

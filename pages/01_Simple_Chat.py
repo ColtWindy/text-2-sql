@@ -3,8 +3,8 @@ from text2sql import AppState
 from text2sql.openai_utils import (
     tracked_chat_completion,
     initialize_models,
-    refresh_models,
 )
+from text2sql.components import model_selector
 
 st.title("간단한 챗봇")
 
@@ -14,24 +14,8 @@ state = AppState(st.session_state)
 # 모델 초기화
 initialize_models(state)
 
-# 모델 정보 fold
-with st.expander("현재 설정"):
-    st.write(f"현재 모델: {state.selected_model}")
-    st.write("모델을 변경하려면 아래 드롭다운을 사용하세요.")
-
-    # 모델 목록 새로고침 버튼
-    if st.button("모델 목록 새로고침"):
-        if refresh_models(state):
-            st.success("모델 목록이 업데이트되었습니다!")
-            st.rerun()  # 페이지 새로고침
-        else:
-            st.error("모델 목록 업데이트에 실패했습니다.")
-
-selected_index = state.available_models.index(state.selected_model)
-selected_model = st.selectbox("모델:", state.available_models, index=selected_index)
-
-# 선택한 모델 저장
-state.selected_model = selected_model
+# 모델 선택기 컴포넌트 사용
+model_selector(state)
 
 # 구분선
 st.divider()
