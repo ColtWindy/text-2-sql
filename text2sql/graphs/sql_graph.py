@@ -1,6 +1,7 @@
-from typing import TypedDict, List, Any, Optional, Union
+from typing import List, Any, Optional
 from dataclasses import dataclass, asdict, field
 from langgraph.graph import StateGraph
+from langchain_core.runnables.config import RunnableConfig
 from langchain_openai import ChatOpenAI
 from langchain.schema import HumanMessage, AIMessage, SystemMessage, BaseMessage
 import re
@@ -14,7 +15,6 @@ from text2sql.state import DBConfig
 class SQLState:
     """LangGraph 에이전트의 상태를 정의하는 데이터 클래스"""
 
-    db: Optional[DBConfig] = None  # DB 설정
     question: str = ""  # 사용자 질문
     schema: str = ""  # DB 스키마 정보
     context: str = ""  # 추가 컨텍스트 정보
@@ -34,15 +34,6 @@ class SQLState:
     def __post_init__(self):
         # 초기화
         pass
-
-    def to_dict(self) -> dict:
-        """dataclass를 딕셔너리로 변환"""
-        return asdict(self)
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "SQLState":
-        """딕셔너리에서 dataclass 인스턴스 생성"""
-        return cls(**data)
 
 
 # 노드 이름 상수
@@ -221,7 +212,7 @@ class SQLGraphNodes:
         return state
 
     @staticmethod
-    def execute_sql(state: SQLState) -> SQLState:
+    def execute_sql(state: SQLState, config: RunnableConfig) -> SQLState:
         """SQL 실행: 생성된 쿼리 실행"""
         print("[SQL_GRAPH] SQL 실행 시작")
 
@@ -237,8 +228,11 @@ class SQLGraphNodes:
         retry_count = state.retry_count
         print(f"[SQL_GRAPH] SQL 실행 (시도 {retry_count+1})")
 
-        # DB 설정이 없으면 기본값 사용
-        db = state.db if state.db is not None else DBConfig()
+        configurable = config.get("configurable", {})
+        db = configurable.get("db")
+
+        if db is None:
+            raise ValueError("DB 설정이 없습니다.")
 
         results, error = execute_query(db, sql)
 
@@ -673,7 +667,7 @@ def create_sql_graph():
     # 시작점과 종료점
     graph.set_entry_point(Node.GENERATE_SQL)
     graph.set_finish_point(Node.UPDATE_HISTORY)
-
+    
     return graph.compile()
 
 

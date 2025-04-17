@@ -21,6 +21,7 @@ st.write("데이터 분석가와 오퍼레이터를 위한 자연어 기반 데�
 # 애플리케이션 상태 초기화
 state = AppState(st.session_state)
 
+
 # LangGraph SQL 그래프용 상태 초기화 함수
 def initialize_langgraph_state():
     """LangGraph 상태 변수를 초기화하는 함수"""
@@ -95,10 +96,9 @@ if prompt:
 
     # 사용자 메시지는 LangGraph에서 처리하도록 함
     history = state.get("sql_history", [])
-    
+
     # LangGraph 그래프 호출을 위한 초기 상태 설정
     initial_state = {
-        "db": state.current_db_config,
         "question": prompt,
         "schema": state.get("db_schema", ""),
         "context": state.get("context", ""),
@@ -115,10 +115,13 @@ if prompt:
         with st.chat_message("assistant"):
             message_placeholder = st.empty()
 
+            # RunnableConfig 설정 - DB 정보 전달
+            config = {"configurable": {"db": state.current_db_config}}
+
             # 스피너와 함께 진행 상태 표시
             with st.spinner("LangGraph 처리 중..."):
-                # SQL 생성 그래프 호출
-                result = sql_graph.invoke(initial_state)
+                # SQL 생성 그래프 호출 - config 전달
+                result = sql_graph.invoke(initial_state, config=config)
 
             # 결과에서 SQL, LLM 응답 및 실행 결과 추출
             generated_sql = result["sql"]
@@ -196,31 +199,6 @@ with tab2:
             if error is not None:
                 st.error(f"쿼리 실행 실패: {error}")
                 st.warning("SQL 쿼리를 수정하고 다시 시도해보세요.")
-                # LangGraph 상태에 오류 정보 추가 (다음 대화에 활용)
-                langgraph_state = {
-                    "question": "이전 쿼리 오류 수정",
-                    "schema": state.get("db_schema", ""),
-                    "context": state.get("context", ""),
-                    "sql": sql_query,
-                    "error": str(error),
-                    "result": None,
-                    "history": state.get("sql_history", []),
-                    "model": state.selected_model,
-                    "llm_response": None,  # LLM 응답 초기화
-                }
-
-                # 오류 정보를 LangGraph로 전달하고 처리 결과 가져오기
-                error_result = sql_graph.invoke(langgraph_state)
-
-                if error_result.get("sql") and error_result["sql"] != sql_query:
-                    st.success("수정된 SQL 쿼리를 생성했습니다:")
-                    st.code(error_result["sql"], language="sql")
-                    st.button(
-                        "수정된 쿼리 적용",
-                        on_click=lambda: st.session_state.update(
-                            {"fixed_sql": error_result["sql"]}
-                        ),
-                    )
 
             else:
                 # 컴포넌트를 사용하여 결과 표시 (수동 쿼리의 경우 접미사 추가)
