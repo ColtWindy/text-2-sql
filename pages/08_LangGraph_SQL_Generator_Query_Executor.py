@@ -225,7 +225,6 @@ with tab2:
 
     # 자동 실행 결과 표시 (있는 경우)
     if query_result and not query_error:
-        st.success("자동 SQL 실행 결과:")
         # 컴포넌트를 사용하여 결과 표시
         display_query_results(query_result, None)
 
