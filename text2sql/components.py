@@ -6,6 +6,8 @@ import streamlit as st
 import glob
 import os
 import json
+import pandas as pd
+from typing import List, Optional, Tuple, Any
 from text2sql.openai_utils import refresh_models
 from text2sql.state import AppState
 
@@ -150,3 +152,48 @@ def context_file_selector(state: AppState):
             return True
 
         return False
+
+
+def display_query_results(results: Optional[List[Tuple]], error: Optional[str], key_suffix: str = ""):
+    """
+    SQL 쿼리 실행 결과를 화면에 표시하고 CSV 다운로드 버튼을 제공합니다.
+    
+    Args:
+        results: SQL 쿼리 실행 결과 (첫 번째 행은 컬럼명)
+        error: 에러 메시지 (에러가 없으면 None)
+        key_suffix: 다운로드 버튼 키의 접미사 (여러 버튼 구분용)
+        
+    Returns:
+        bool: 쿼리 실행 성공 여부
+    """
+    if error is not None:
+        st.error(f"쿼리 실행 실패: {error}")
+        st.warning("SQL 쿼리를 수정하고 다시 시도해보세요.")
+        return False
+    
+    elif not results or len(results) <= 1:  # 컬럼명만 있고 데이터가 없는 경우
+        st.info("쿼리가 성공적으로 실행되었지만 반환된 결과가 없습니다.")
+        return True
+    
+    else:
+        # 성공적인 결과 표시
+        row_count = len(results) - 1  # 첫 번째 행은 컬럼명
+        st.success(f"쿼리 실행 성공: {row_count}개의 결과를 찾았습니다.")
+
+        # 결과를 데이터프레임으로 변환하여 표시
+        columns = results[0]
+        data = results[1:]
+        df = pd.DataFrame(data, columns=columns)
+        st.dataframe(df)
+
+        # CSV 다운로드 버튼 추가
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "CSV로 다운로드",
+            csv,
+            "query_results.csv",
+            "text/csv",
+            key=f"download-csv{'-' + key_suffix if key_suffix else ''}",
+        )
+        
+        return True

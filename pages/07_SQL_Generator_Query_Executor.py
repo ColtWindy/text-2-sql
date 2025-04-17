@@ -1,7 +1,4 @@
 import streamlit as st
-import pandas as pd
-import os
-import json
 import re
 
 # 커스텀 모듈 임포트
@@ -9,9 +6,13 @@ from text2sql import AppState
 from text2sql.openai_utils import (
     tracked_chat_completion,
     initialize_models,
-    refresh_models,
 )
-from text2sql.components import model_selector, get_extra_files, read_file_content, context_file_selector
+from text2sql.components import (
+    model_selector,
+    read_file_content,
+    context_file_selector,
+    display_query_results,
+)
 from text2sql.db_utils import execute_query, get_all_tables, get_table_schema
 
 # 페이지 설정
@@ -251,33 +252,8 @@ with tab2:
         if not sql_query.strip():
             st.warning("실행할 SQL 쿼리를 입력하세요.")
         else:
-
             with st.spinner("쿼리 실행 중..."):
                 results, error = execute_query(sql_query)
 
-            if error is not None:
-                st.error(f"쿼리 실행 실패: {error}")
-                st.warning("SQL 쿼리를 수정하고 다시 시도해보세요.")
-
-            elif not results or len(results) <= 1:  # 컬럼명만 있고 데이터가 없는 경우
-                st.info("쿼리가 성공적으로 실행되었지만 반환된 결과가 없습니다.")
-            else:
-                # 성공적인 결과 표시
-                row_count = len(results) - 1  # 첫 번째 행은 컬럼명
-                st.success(f"쿼리 실행 성공: {row_count}개의 결과를 찾았습니다.")
-
-                columns = results[0]
-                data = results[1:]
-
-                df = pd.DataFrame(data, columns=columns)
-                st.dataframe(df)
-
-                # CSV 다운로드 버튼 추가
-                csv = df.to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    "CSV로 다운로드",
-                    csv,
-                    "query_results.csv",
-                    "text/csv",
-                    key="download-csv",
-                )
+            # 컴포넌트를 사용하여 결과 표시
+            display_query_results(results, error)

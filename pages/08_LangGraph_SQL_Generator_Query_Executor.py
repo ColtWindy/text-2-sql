@@ -1,15 +1,17 @@
 import streamlit as st
-import pandas as pd
-import os
-import json
-from typing import List, Dict, Any, Tuple
+from typing import List, Any, Tuple
 
 # 커스텀 모듈 임포트
 from text2sql import AppState
 from text2sql.openai_utils import initialize_models, refresh_models
 from text2sql.db_utils import execute_query, get_all_tables, get_table_schema
 from text2sql.graphs.sql_graph import sql_graph
-from text2sql.components import model_selector, get_extra_files, read_file_content, context_file_selector
+from text2sql.components import (
+    model_selector,
+    read_file_content,
+    context_file_selector,
+    display_query_results,
+)
 
 # 페이지 설정
 st.title("LangGraph SQL 생성 및 실행기")
@@ -224,35 +226,8 @@ with tab2:
     # 자동 실행 결과 표시 (있는 경우)
     if query_result and not query_error:
         st.success("자동 SQL 실행 결과:")
-
-        # 결과 처리
-        if (
-            not query_result or len(query_result) <= 1
-        ):  # 컬럼명만 있고 데이터가 없는 경우
-            st.info("쿼리가 성공적으로 실행되었지만 반환된 결과가 없습니다.")
-        else:
-            # 성공적인 결과 표시
-            row_count = len(query_result) - 1  # 첫 번째 행은 컬럼명
-            st.success(f"쿼리 실행 성공: {row_count}개의 결과를 찾았습니다.")
-
-            # 첫 번째 행을 컬럼명으로 사용
-            columns = query_result[0]
-            # 첫 번째 행을 제외한 나머지를 데이터로 사용
-            data = query_result[1:]
-
-            # 결과를 데이터프레임으로 변환하여 표시
-            df = pd.DataFrame(data, columns=columns)
-            st.dataframe(df)
-
-            # CSV 다운로드 버튼 추가
-            csv = df.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                "CSV로 다운로드",
-                csv,
-                "query_results.csv",
-                "text/csv",
-                key="download-csv",
-            )
+        # 컴포넌트를 사용하여 결과 표시
+        display_query_results(query_result, None)
 
     # 자동 실행 중 오류가 발생한 경우
     elif query_error:
@@ -300,26 +275,5 @@ with tab2:
                     )
 
             else:
-                # 결과 처리
-                if not results or len(results) <= 1:  # 컬럼명만 있고 데이터가 없는 경우
-                    st.info("쿼리가 성공적으로 실행되었지만 반환된 결과가 없습니다.")
-                else:
-                    # 성공적인 결과 표시
-                    row_count = len(results) - 1  # 첫 번째 행은 컬럼명
-                    st.success(f"쿼리 실행 성공: {row_count}개의 결과를 찾았습니다.")
-
-                    # 결과를 데이터프레임으로 변환하여 표시
-                    columns = results[0]
-                    data = results[1:]
-                    df = pd.DataFrame(data, columns=columns)
-                    st.dataframe(df)
-
-                    # CSV 다운로드 버튼 추가
-                    csv = df.to_csv(index=False).encode("utf-8")
-                    st.download_button(
-                        "CSV로 다운로드",
-                        csv,
-                        "query_results.csv",
-                        "text/csv",
-                        key="download-csv-manual",
-                    )
+                # 컴포넌트를 사용하여 결과 표시 (수동 쿼리의 경우 접미사 추가)
+                display_query_results(results, None, "manual")
