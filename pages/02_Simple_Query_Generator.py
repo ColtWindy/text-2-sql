@@ -2,13 +2,11 @@ import streamlit as st
 from text2sql import AppState
 from text2sql.openai_utils import (
     tracked_chat_completion,
-    initialize_models,
 )
 from text2sql.components import model_selector
 
 st.title("간단한 SQL 생성기")
 state = AppState(st.session_state)
-initialize_models(state)
 
 SQL_SYSTEM_PROMPT = """당신은 전문 SQL 생성기입니다. 사용자는 한국어로 질문할 것이며, 당신은 유효한 PostgreSQL SQL 쿼리를 출력해야 합니다. 주어진 스키마 정보를 사용하고 스키마에 없는 테이블/컬럼은 가정하지 마세요. 질문이 모호하거나 세부 정보가 누락된 경우, 추측하지 말고 명확한 질문을 해주세요."""
 

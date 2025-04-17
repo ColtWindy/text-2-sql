@@ -2,7 +2,6 @@ import streamlit as st
 from text2sql import AppState
 from text2sql.openai_utils import (
     tracked_chat_completion,
-    initialize_models,
 )
 from text2sql.components import model_selector
 
@@ -10,9 +9,6 @@ st.title("간단한 챗봇")
 
 # State 초기화
 state = AppState(st.session_state)
-
-# 모델 초기화
-initialize_models(state)
 
 # 모델 선택기 컴포넌트 사용
 model_selector(state)

@@ -3,7 +3,6 @@ from typing import List, Any, Tuple
 
 # 커스텀 모듈 임포트
 from text2sql import AppState
-from text2sql.openai_utils import initialize_models
 from text2sql.db_utils import execute_query
 from text2sql.graphs.sql_graph import sql_graph
 from text2sql.components import (
@@ -22,10 +21,6 @@ st.write("데이터 분석가와 오퍼레이터를 위한 자연어 기반 데�
 # 애플리케이션 상태 초기화
 state = AppState(st.session_state)
 
-# 모델 초기화 실행
-initialize_models(state)
-
-
 # LangGraph SQL 그래프용 상태 초기화 함수
 def initialize_langgraph_state():
     """LangGraph 상태 변수를 초기화하는 함수"""
@@ -39,7 +34,7 @@ def initialize_langgraph_state():
         state.set("selected_context_files", [])
     if not state.has("llm_response"):
         state.set("llm_response", None)
-    
+
     # DB 스키마 로드 (공통 컴포넌트 사용)
     load_db_schema(state)
 
@@ -49,7 +44,7 @@ def execute_sql_query(
     sql_query: str,
 ) -> Tuple[List[Tuple[Any, ...]] | None, str | None]:
     """SQL 쿼리를 실행하고 결과 및 오류를 반환"""
-    results, error = execute_query(sql_query, state=state)
+    results, error = execute_query(state.current_db_config, sql_query)
     return results, error
 
 
@@ -106,6 +101,7 @@ if prompt:
 
     # LangGraph 그래프 호출을 위한 초기 상태 설정
     initial_state = {
+        "db": state.current_db_config,
         "question": prompt,
         "schema": state.get("db_schema", ""),
         "context": state.get("context", ""),
@@ -197,13 +193,12 @@ with tab2:
         else:
             # 쿼리 실행
             with st.spinner("쿼리 실행 중..."):
-                results, error = execute_query(sql_query, state=state)
+                results, error = execute_query(state.current_db_config, sql_query)
 
             # 오류 처리
             if error is not None:
                 st.error(f"쿼리 실행 실패: {error}")
                 st.warning("SQL 쿼리를 수정하고 다시 시도해보세요.")
-
                 # LangGraph 상태에 오류 정보 추가 (다음 대화에 활용)
                 langgraph_state = {
                     "question": "이전 쿼리 오류 수정",

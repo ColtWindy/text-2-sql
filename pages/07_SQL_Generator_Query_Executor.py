@@ -5,7 +5,6 @@ import re
 from text2sql import AppState
 from text2sql.openai_utils import (
     tracked_chat_completion,
-    initialize_models,
 )
 from text2sql.components import (
     model_selector,
@@ -24,9 +23,6 @@ st.write("데이터 분석가와 오퍼레이터를 위한 자연어 기반 데�
 
 # 애플리케이션 상태 초기화
 state = AppState(st.session_state)
-
-# 모델 초기화 실행
-initialize_models(state)
 
 # 초기 DB 스키마 로드
 db_schema = load_db_schema(state)
@@ -225,7 +221,7 @@ with tab2:
             st.warning("실행할 SQL 쿼리를 입력하세요.")
         else:
             with st.spinner("쿼리 실행 중..."):
-                results, error = execute_query(sql_query, state=state)
-            
+                results, error = execute_query(state.current_db_config, sql_query)
+
             # 컴포넌트를 사용하여 결과 표시
             display_query_results(results, error)

@@ -250,12 +250,13 @@ def get_db_schema(state: AppState) -> str:
         str: 스키마 정보 텍스트
     """
     schema_text = ""
-    tables = get_all_tables(state)
+    db = state.current_db_config
+    tables = get_all_tables(db)
     if tables:
         for table in tables:
             schema_text += f"\n테이블: {table}\n"
 
-            columns = get_table_schema(table, state)
+            columns = get_table_schema(db, table)
             if columns:
                 for col in columns:
                     col_name = col[0]

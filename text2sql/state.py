@@ -1,6 +1,6 @@
 from typing import Dict, List, Any, Optional, TypedDict
 from dataclasses import dataclass
-import streamlit as st
+from text2sql.openai_utils import get_available_models
 
 
 # 메시지 타입 정의
@@ -60,7 +60,7 @@ class AppState:
     Streamlit의 session_state를 래핑하여 타입 안정성과 속성 접근 편의성을 제공합니다.
     """
 
-    def __init__(self, session_state) -> None:
+    def __init__(self, session_state):
         """
         session_state: List[Message] 타입의 메시지 목록
         """
@@ -69,7 +69,7 @@ class AppState:
         # 기본값 초기화
         self._init_default_values()
 
-    def _init_default_values(self) -> None:
+    def _init_default_values(self):
         """기본 상태값 초기화"""
         if "messages" not in self._session_state:
             self._session_state.messages = []
@@ -83,6 +83,9 @@ class AppState:
         # 현재 선택된 데이터베이스 인덱스 초기화 (기본값: 첫 번째 DB)
         if "selected_db_index" not in self._session_state:
             self._session_state.selected_db_index = 0
+
+        # 모델과 DB 리소스 초기화
+        self.initialize_resources()
 
     # 메시지 관련 속성
     @property
@@ -156,3 +159,46 @@ class AppState:
     def has(self, key: str) -> bool:
         """키가 존재하는지 확인"""
         return key in self._session_state
+
+    def initialize_resources(self) -> bool:
+        """
+        애플리케이션의 리소스(모델, DB 설정)를 초기화합니다.
+
+        Returns:
+            bool: 리소스가 업데이트되었으면 True, 아니면 False
+        """
+        updated = False
+
+        # 1. 모델 초기화
+        # 모델 목록이 비어있는 경우에만 가져오기
+        if not self.available_models:
+            self.available_models = get_available_models()
+            updated = True
+
+        # 모델 목록이 여전히 비어있으면 기본값 설정
+        if not self.available_models:
+            self.available_models = ["gpt-4o"]
+            updated = True
+
+        # 선택된 모델이 목록에 없으면 첫 번째 모델로 설정
+        if self.selected_model not in self.available_models:
+            self.selected_model = self.available_models[0]
+            updated = True
+
+        # 2. DB 설정 초기화
+        # 선택된 DB 인덱스가 유효한 범위인지 확인
+        if self.selected_db_index < 0 or self.selected_db_index >= len(DB_CONFIGS):
+            self.selected_db_index = 0
+            updated = True
+
+        # DB 스키마 정보 초기화 (없는 경우)
+        if not self.has("db_schema") or not self.get("db_schema"):
+            self.set("db_schema", "")
+            updated = True
+
+        # 연결 테스트 상태 초기화
+        if not self.has("db_connection_status"):
+            self.set("db_connection_status", None)
+            updated = True
+
+        return updated
