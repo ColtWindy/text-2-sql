@@ -122,12 +122,9 @@ with st.sidebar:
 
     # 추가 컨텍스트 파일 선택 UI 사용
     if context_file_selector(state):
-        # 시스템 프롬프트 업데이트 버튼
-        if st.button("컨텍스트 적용"):
-            update_context_from_files(state)
-            if update_system_message():
-                st.success("추가 컨텍스트가 적용되었습니다.")
-                st.rerun()
+        update_context_from_files(state)
+        if update_system_message():
+            st.success("추가 컨텍스트가 적용되었습니다.")
 
 
 # 대화 초기화 버튼

@@ -168,17 +168,17 @@ class SQLGraphNodes:
             # 원본 질문 저장
             state.original_question = state.question
 
-            # 사용자 질문을 히스토리에 추가 (중복 방지)
-            if state.history:
-                history = state.history
-                last_user = next(
-                    (m for m in reversed(history) if m["role"] == "user"), None
-                )
+            # 사용자 질문을 히스토리에 항상 추가 (중복 방지)
+            history = state.history.copy()
+            # # 마지막 사용자 메시지 확인
+            # last_user = next(
+            #     (m for m in reversed(history) if m["role"] == "user"), None
+            # )
 
-                if not last_user or last_user["content"] != state.question:
-                    state.history = history + [
-                        {"role": "user", "content": state.question}
-                    ]
+            # # 중복되지 않은 경우에만 추가 (비어있어도 추가)
+            # if not last_user or last_user["content"] != state.question:
+            history.append({"role": "user", "content": state.question})
+            state.history = history
 
         # 프롬프트 설정 (항상 같은 프롬프트 사용)
         system_prompt = Prompts.SQL_GENERATION

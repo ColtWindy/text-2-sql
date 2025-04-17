@@ -62,11 +62,8 @@ with st.sidebar:
 
     # 추가 컨텍스트 파일 선택 UI 사용
     if context_file_selector(state):
-        # 컨텍스트 적용 버튼
-        if st.button("컨텍스트 적용"):
-            update_context_from_files(state)
-            st.success("추가 컨텍스트가 적용되었습니다.")
-            st.rerun()
+        update_context_from_files(state)
+        st.success("추가 컨텍스트가 적용되었습니다.")
 
 
 # 대화 초기화 버튼
@@ -96,9 +93,9 @@ if prompt:
         with st.chat_message("user"):
             st.markdown(prompt)
 
-    # 사용자 메시지 직접 추가하지 않고 LangGraph가 처리하도록 함
+    # 사용자 메시지는 LangGraph에서 처리하도록 함
     history = state.get("sql_history", [])
-
+    
     # LangGraph 그래프 호출을 위한 초기 상태 설정
     initial_state = {
         "db": state.current_db_config,
@@ -108,7 +105,7 @@ if prompt:
         "sql": "",
         "error": None,
         "result": None,
-        "history": history,  # 기존 히스토리 그대로 전달
+        "history": history,  # 기존 히스토리 전달 (LangGraph에서 처리)
         "model": state.selected_model,
         "llm_response": None,  # LLM 응답 초기화
     }
