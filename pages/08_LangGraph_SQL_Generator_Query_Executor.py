@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import os
 import json
-import glob
 from typing import List, Dict, Any, Tuple
 
 # 커스텀 모듈 임포트
@@ -10,7 +9,7 @@ from text2sql import AppState
 from text2sql.openai_utils import initialize_models, refresh_models
 from text2sql.db_utils import execute_query, get_all_tables, get_table_schema
 from text2sql.graphs.sql_graph import sql_graph
-from text2sql.components import model_selector
+from text2sql.components import model_selector, get_extra_files, read_file_content, context_file_selector
 
 # 페이지 설정
 st.title("LangGraph SQL 생성 및 실행기")
@@ -40,45 +39,6 @@ def initialize_langgraph_state():
         state.set("llm_response", None)
 
 
-# extras 디렉토리에서 파일 목록 가져오기
-def get_extra_files():
-    # 메인 extras 디렉토리의 파일 목록
-    md_files = glob.glob("extras/*.md")
-    md_files = [f for f in md_files if os.path.isfile(f)]
-
-    # E_commerce 디렉토리의 파일 목록
-    ecom_files = glob.glob("extras/E_commerce/*.*")
-    ecom_files = [f for f in ecom_files if os.path.isfile(f)]
-
-    # 모든 파일 목록 합치기
-    all_files = md_files + ecom_files
-
-    # 파일 경로에서 파일명만 추출
-    file_options = {}
-    for file_path in all_files:
-        file_name = os.path.basename(file_path)
-        file_options[file_name] = file_path
-
-    return file_options
-
-
-# 파일 내용 읽기 함수
-def read_file_content(file_path):
-    try:
-        with open(file_path, "r", encoding="utf-8") as file:
-            # 파일 확장자에 따라 처리 방식 분기
-            if file_path.endswith(".json"):
-                try:
-                    return json.dumps(json.load(file), indent=2, ensure_ascii=False)
-                except:
-                    return file.read()  # JSON 파싱 실패시 원본 텍스트 반환
-            else:
-                # 기타 파일은 텍스트로 읽음
-                return file.read()
-    except Exception as e:
-        return f"파일 읽기 오류: {str(e)}"
-
-
 # 데이터베이스 스키마 정보를 가져오는 함수
 def get_db_schema():
     schema_text = ""
@@ -104,9 +64,10 @@ def update_context():
     selected_files = state.get("selected_context_files")
 
     for file_path in selected_files:
-        file_name = os.path.basename(file_path)
+        # extras/ 이후의 경로만 표시
+        display_name = file_path.replace("extras/", "", 1)
         content = read_file_content(file_path)
-        context += f"\n--- {file_name} ---\n{content}\n"
+        context += f"\n--- {display_name} ---\n{content}\n"
 
     state.set("context", context)
     return context
@@ -145,55 +106,13 @@ with st.sidebar:
         # 스키마 정보 표시
         st.code(state.get("db_schema", ""))
 
-    # 추가 컨텍스트 파일 선택 UI
-    with st.expander("추가 컨텍스트 파일 선택"):
-
-        # 파일 목록 가져오기
-        file_options = get_extra_files()
-
-        # 파일 선택 UI
-        selected_files = st.multiselect(
-            "컨텍스트로 사용할 파일을 선택하세요",
-            options=list(file_options.keys()),
-            default=[
-                os.path.basename(f)
-                for f in state.get("selected_context_files")
-                if os.path.basename(f) in file_options.keys()
-            ],
-            help="선택한 파일의 내용이 SQL 생성 프롬프트에 추가됩니다.",
-        )
-
-        # 선택된 파일 경로 저장
-        selected_file_paths = [
-            file_options[file_name]
-            for file_name in selected_files
-            if file_name in file_options
-        ]
-        state.set("selected_context_files", selected_file_paths)
-
-        # 선택된 파일 미리보기
-        if selected_file_paths:
-            st.write("선택된 파일 미리보기:")
-            for file_path in selected_file_paths:
-                file_name = os.path.basename(file_path)
-                st.markdown(f"**{file_name}**")
-                container = st.container()
-                with container:
-                    content = read_file_content(file_path)
-                    # JSON이나 긴 텍스트는 코드 블록으로 표시
-                    if file_path.endswith(".json") or len(content) > 500:
-                        st.code(content[:2000] + ("..." if len(content) > 2000 else ""))
-                    else:
-                        st.write(
-                            content[:2000] + ("..." if len(content) > 2000 else "")
-                        )
-                st.markdown("---")  # 구분선 추가
-
-            # 컨텍스트 적용 버튼
-            if st.button("컨텍스트 적용"):
-                update_context()
-                st.success("추가 컨텍스트가 적용되었습니다.")
-                st.rerun()
+    # 추가 컨텍스트 파일 선택 UI 사용
+    if context_file_selector(state):
+        # 컨텍스트 적용 버튼
+        if st.button("컨텍스트 적용"):
+            update_context()
+            st.success("추가 컨텍스트가 적용되었습니다.")
+            st.rerun()
 
 
 # 대화 초기화 버튼

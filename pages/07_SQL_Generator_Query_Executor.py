@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import os
 import json
-import glob
 import re
 
 # 커스텀 모듈 임포트
@@ -12,7 +11,7 @@ from text2sql.openai_utils import (
     initialize_models,
     refresh_models,
 )
-from text2sql.components import model_selector
+from text2sql.components import model_selector, get_extra_files, read_file_content, context_file_selector
 from text2sql.db_utils import execute_query, get_all_tables, get_table_schema
 
 # 페이지 설정
@@ -48,41 +47,6 @@ def initialize_state():
     if not state.has("sql_messages"):
         full_system_prompt = build_prompt_context()
         state.set("sql_messages", [{"role": "system", "content": full_system_prompt}])
-
-
-# extras 디렉토리에서 파일 목록 가져오기
-def get_extra_files():
-    md_files = glob.glob("extras/*.md")
-    md_files = [f for f in md_files if os.path.isfile(f)]
-
-    ecom_files = glob.glob("extras/E_commerce/*.*")
-    ecom_files = [f for f in ecom_files if os.path.isfile(f)]
-
-    all_files = md_files + ecom_files
-
-    # 파일명만 추출
-    file_options = {}
-    for file_path in all_files:
-        file_name = os.path.basename(file_path)
-        file_options[file_name] = file_path
-
-    return file_options
-
-
-# 파일 내용 읽기
-def read_file_content(file_path):
-    try:
-        with open(file_path, "r", encoding="utf-8") as file:
-            if file_path.endswith(".json"):
-                try:
-                    return json.dumps(json.load(file), indent=2, ensure_ascii=False)
-                except:
-                    return file.read()
-            else:
-                # 기타 파일은 텍스트로 읽음
-                return file.read()
-    except Exception as e:
-        return f"파일 읽기 오류: {str(e)}"
 
 
 # 스키마 정보 조회
@@ -148,9 +112,10 @@ def build_prompt_context():
         context_content = "\n\n추가 컨텍스트 정보:\n"
 
         for file_path in selected_files:
-            file_name = os.path.basename(file_path)
+            # extras/ 이후의 경로만 표시
+            display_name = file_path.replace("extras/", "", 1)
             content = read_file_content(file_path)
-            context_content += f"\n--- {file_name} ---\n{content}\n"
+            context_content += f"\n--- {display_name} ---\n{content}\n"
 
         base_prompt += context_content
 
@@ -187,57 +152,13 @@ with st.sidebar:
         # 스키마 정보 표시
         st.code(db_schema)
 
-    # 추가 컨텍스트 파일 선택 UI
-    with st.expander("추가 컨텍스트 파일 선택"):
-
-        # 파일 목록 가져오기
-        file_options = get_extra_files()
-
-        # 파일 선택 UI
-        selected_files = st.multiselect(
-            "컨텍스트로 사용할 파일을 선택하세요",
-            options=list(file_options.keys()),
-            default=[
-                os.path.basename(f)
-                for f in state.get("selected_context_files")
-                if os.path.basename(f) in file_options.keys()
-            ],
-            help="선택한 파일의 내용이 SQL 생성 프롬프트에 추가됩니다.",
-        )
-
-        # 선택된 파일 경로 저장
-        selected_file_paths = [
-            file_options[file_name]
-            for file_name in selected_files
-            if file_name in file_options
-        ]
-        state.set("selected_context_files", selected_file_paths)
-
-        # 선택된 파일 미리보기
-        if selected_file_paths:
-            st.write("선택된 파일 미리보기:")
-            for file_path in selected_file_paths:
-                file_name = os.path.basename(file_path)
-                # expander 대신 컨테이너와 제목으로 대체
-                st.markdown(f"**{file_name}**")
-                container = st.container()
-                with container:
-                    content = read_file_content(file_path)
-                    # JSON이나 긴 텍스트는 코드 블록으로 표시
-                    if file_path.endswith(".json") or len(content) > 500:
-                        st.code(content[:2000] + ("..." if len(content) > 2000 else ""))
-                    else:
-                        st.write(
-                            content[:2000] + ("..." if len(content) > 2000 else "")
-                        )
-
-                st.markdown("---")
-
-            # 시스템 프롬프트 업데이트 버튼
-            if st.button("컨텍스트 적용"):
-                if update_system_message():
-                    st.success("추가 컨텍스트가 적용되었습니다.")
-                    st.rerun()
+    # 추가 컨텍스트 파일 선택 UI 사용
+    if context_file_selector(state):
+        # 시스템 프롬프트 업데이트 버튼
+        if st.button("컨텍스트 적용"):
+            if update_system_message():
+                st.success("추가 컨텍스트가 적용되었습니다.")
+                st.rerun()
 
 
 # 대화 초기화 버튼
