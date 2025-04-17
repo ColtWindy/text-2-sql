@@ -6,31 +6,29 @@ import psycopg
 from psycopg import sql
 from typing import List, Tuple, Dict, Any, Optional, Union
 
+from text2sql.state import AppState, DBConfig
 
-def connect_to_db(
-    host: str = "localhost",
-    # port: int = 55433, # e_commerce
-    port: int = 55434, # e_commerce_nonintuitive
-    dbname: str = "postgres",
-    user: str = "postgres",
-    password: str = "postgres",
-) -> Optional[psycopg.Connection]:
+
+def connect_to_db(state: AppState) -> Optional[psycopg.Connection]:
     """
     PostgreSQL 데이터베이스에 연결합니다.
 
     Args:
-
-        port: 데이터베이스 포트
-        dbname: 데이터베이스 이름
-        user: 사용자 이름
-        password: 사용자 비밀번호
+        state: AppState 객체 (DB 설정을 가져옴)
 
     Returns:
         연결 객체 또는 연결 실패 시 None
     """
     try:
+        # 상태에서 DB 설정 가져오기
+        config: DBConfig = state.current_db_config
+        
         conn = psycopg.connect(
-            host=host, port=port, dbname=dbname, user=user, password=password
+            host=config.host,
+            port=config.port,
+            dbname=config.dbname,
+            user=config.user,
+            password=config.password,
         )
         return conn
     except Exception as e:
@@ -41,6 +39,7 @@ def connect_to_db(
 def execute_query(
     query: Union[str, sql.Composed],
     params: Optional[Union[Tuple, Dict[str, Any]]] = None,
+    state=None,
 ) -> Tuple[Optional[List[Tuple]], Optional[str]]:
     """
     SQL 쿼리를 실행하고 결과를 반환합니다.
@@ -48,6 +47,7 @@ def execute_query(
     Args:
         query: 실행할 SQL 쿼리 (문자열 또는 psycopg.sql.Composed 객체)
         params: 쿼리 파라미터 (선택 사항)
+        state: AppState 객체 (DB 설정을 가져옴)
 
     Returns:
         (결과, 오류) 튜플:
@@ -55,7 +55,7 @@ def execute_query(
             - 실패 시: (None, 오류 메시지)
         SELECT 쿼리인 경우 첫 번째 행에 컬럼 이름이 포함됩니다.
     """
-    conn = connect_to_db()
+    conn = connect_to_db(state)
     if not conn:
         return None, "데이터베이스 연결에 실패했습니다."
 
@@ -84,9 +84,12 @@ def execute_query(
             conn.close()
 
 
-def get_all_tables() -> Optional[List[str]]:
+def get_all_tables(state=None) -> Optional[List[str]]:
     """
     PostgreSQL 데이터베이스의 모든 테이블 목록을 반환합니다.
+
+    Args:
+        state: AppState 객체 (있는 경우 DB 포트를 가져옴)
 
     Returns:
         테이블 이름 목록 또는 실패 시 None
@@ -98,7 +101,7 @@ def get_all_tables() -> Optional[List[str]]:
         ORDER BY table_name
     """
 
-    results, error = execute_query(query)
+    results, error = execute_query(query, state=state)
 
     if error is None and results is not None:
         # 첫 번째 행은 컬럼 이름
@@ -106,12 +109,13 @@ def get_all_tables() -> Optional[List[str]]:
     return None
 
 
-def get_table_schema(table_name: str) -> Optional[List[Tuple]]:
+def get_table_schema(table_name: str, state=None) -> Optional[List[Tuple]]:
     """
     테이블의 스키마 정보(컬럼, 데이터 타입, NULL 허용 여부)를 반환합니다.
 
     Args:
         table_name: 스키마 정보를 조회할 테이블 이름
+        state: AppState 객체 (있는 경우 DB 포트를 가져옴)
 
     Returns:
         컬럼 정보 목록 또는 실패 시 None
@@ -123,7 +127,7 @@ def get_table_schema(table_name: str) -> Optional[List[Tuple]]:
         ORDER BY ordinal_position
     """
 
-    results, error = execute_query(query, (table_name,))
+    results, error = execute_query(query, (table_name,), state=state)
 
     if error is None and results is not None:
         # 첫 번째 행은 컬럼 이름을 제외하고 반환
@@ -131,20 +135,23 @@ def get_table_schema(table_name: str) -> Optional[List[Tuple]]:
     return None
 
 
-def get_table_data(table_name: str, limit: int = 100) -> Optional[List[Tuple]]:
+def get_table_data(
+    table_name: str, limit: int = 100, state=None
+) -> Optional[List[Tuple]]:
     """
     테이블 데이터를 조회합니다.
 
     Args:
         table_name: 데이터를 조회할 테이블 이름
         limit: 반환할 최대 행 수
+        state: AppState 객체 (있는 경우 DB 포트를 가져옴)
 
     Returns:
         테이블 데이터 또는 실패 시 None
     """
     query = sql.SQL("SELECT * FROM {} LIMIT %s").format(sql.Identifier(table_name))
 
-    results, error = execute_query(query, (limit,))
+    results, error = execute_query(query, (limit,), state=state)
 
     if error is None and results is not None:
         return results

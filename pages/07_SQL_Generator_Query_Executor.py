@@ -12,8 +12,11 @@ from text2sql.components import (
     read_file_content,
     context_file_selector,
     display_query_results,
+    load_db_schema,
+    update_context_from_files,
+    db_schema_expander,
 )
-from text2sql.db_utils import execute_query, get_all_tables, get_table_schema
+from text2sql.db_utils import execute_query
 
 # 페이지 설정
 st.title("SQL 생성 및 실행기")
@@ -24,6 +27,9 @@ state = AppState(st.session_state)
 
 # 모델 초기화 실행
 initialize_models(state)
+
+# 초기 DB 스키마 로드
+db_schema = load_db_schema(state)
 
 # SQL 시스템 프롬프트 설정
 SQL_SYSTEM_PROMPT = """당신은 전문 SQL 생성기입니다. 
@@ -38,6 +44,26 @@ SQL_SYSTEM_PROMPT = """당신은 전문 SQL 생성기입니다.
 질문이 모호하거나 더 많은 정보가 필요하면 사용자에게 명확하게 해달라고 요청하세요."""
 
 
+# 프롬프트 컨텍스트 생성 함수
+def build_prompt_context():
+    base_prompt = f"{SQL_SYSTEM_PROMPT}\n\n스키마 정보:\n{db_schema}"
+
+    # 선택된 컨텍스트 파일이 있다면 추가
+    if state.has("selected_context_files") and state.get("selected_context_files"):
+        selected_files = state.get("selected_context_files")
+        context_content = "\n\n추가 컨텍스트 정보:\n"
+
+        for file_path in selected_files:
+            # extras/ 이후의 경로만 표시
+            display_name = file_path.replace("extras/", "", 1)
+            content = read_file_content(file_path)
+            context_content += f"\n--- {display_name} ---\n{content}\n"
+
+        base_prompt += context_content
+
+    return base_prompt
+
+
 # 상태 초기화 함수
 def initialize_state():
     """상태 변수를 초기화하는 함수"""
@@ -48,27 +74,6 @@ def initialize_state():
     if not state.has("sql_messages"):
         full_system_prompt = build_prompt_context()
         state.set("sql_messages", [{"role": "system", "content": full_system_prompt}])
-
-
-# 스키마 정보 조회
-def get_db_schema():
-    schema_text = ""
-    tables = get_all_tables()
-    if tables:
-        for table in tables:
-            schema_text += f"\n테이블: {table}\n"
-
-            columns = get_table_schema(table)
-            if columns:
-                for col in columns:
-                    col_name = col[0]
-                    data_type = col[1]
-                    nullable = "NULL 허용" if col[2] == "YES" else "NOT NULL"
-                    schema_text += f"- {col_name} ({data_type}, {nullable})\n"
-
-            # TODO: PK, FK, Relation?? 처리 할 것
-
-    return schema_text
 
 
 # 시스템 메시지 업데이트
@@ -103,60 +108,27 @@ def clean_sql_response(response):
     return ""
 
 
-# 프롬프트 컨텍스트 생성 함수
-def build_prompt_context():
-    base_prompt = f"{SQL_SYSTEM_PROMPT}\n\n스키마 정보:\n{db_schema}"
-
-    # 선택된 컨텍스트 파일이 있다면 추가
-    if state.has("selected_context_files") and state.get("selected_context_files"):
-        selected_files = state.get("selected_context_files")
-        context_content = "\n\n추가 컨텍스트 정보:\n"
-
-        for file_path in selected_files:
-            # extras/ 이후의 경로만 표시
-            display_name = file_path.replace("extras/", "", 1)
-            content = read_file_content(file_path)
-            context_content += f"\n--- {display_name} ---\n{content}\n"
-
-        base_prompt += context_content
-
-    return base_prompt
-
-
-# 초기 스키마 정보 가져오기
-db_schema = get_db_schema()
-if not db_schema:
-    db_schema = "데이터베이스 연결에 실패했거나 스키마 정보가 없습니다."
-
 # 상태 초기화
 initialize_state()
 
 # 사이드바에 스키마 정보와 추가 컨텍스트 선택 UI 표시
 with st.sidebar:
-
     # 모델 선택기 컴포넌트 사용
     model_selector(state)
 
-    # DB 스키마 정보
-    with st.expander("데이터베이스 스키마 정보"):
-        if st.button("DB 스키마 다시 조회"):
-            with st.spinner("데이터베이스 스키마 정보를 조회중입니다..."):
-                refreshed_schema = get_db_schema()
-                if refreshed_schema:
-                    db_schema = refreshed_schema
-                    if update_system_message():
-                        st.success("스키마 정보가 업데이트되었습니다.")
-                        st.rerun()  # 페이지 새로고침으로 업데이트된 스키마 표시
-                else:
-                    st.error("데이터베이스 스키마를 가져오는데 실패했습니다.")
-
-        # 스키마 정보 표시
-        st.code(db_schema)
+    # DB 스키마 정보 표시 (공통 컴포넌트 사용)
+    if db_schema_expander(state):
+        # 스키마가 새로고침되었다면 글로벌 변수 업데이트
+        db_schema = state.get("db_schema", "")
+        # 시스템 메시지 업데이트
+        if update_system_message():
+            st.rerun()  # 페이지 새로고침으로 업데이트된 스키마 표시
 
     # 추가 컨텍스트 파일 선택 UI 사용
     if context_file_selector(state):
         # 시스템 프롬프트 업데이트 버튼
         if st.button("컨텍스트 적용"):
+            update_context_from_files(state)
             if update_system_message():
                 st.success("추가 컨텍스트가 적용되었습니다.")
                 st.rerun()
@@ -253,7 +225,7 @@ with tab2:
             st.warning("실행할 SQL 쿼리를 입력하세요.")
         else:
             with st.spinner("쿼리 실행 중..."):
-                results, error = execute_query(sql_query)
-
+                results, error = execute_query(sql_query, state=state)
+            
             # 컴포넌트를 사용하여 결과 표시
             display_query_results(results, error)

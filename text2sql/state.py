@@ -1,4 +1,5 @@
 from typing import Dict, List, Any, Optional, TypedDict
+from dataclasses import dataclass
 import streamlit as st
 
 
@@ -8,6 +9,49 @@ class Message(TypedDict):
 
     role: str  # 'user' 또는 'assistant'
     content: str  # 메시지 내용
+
+
+# 데이터베이스 설정 타입 정의
+@dataclass
+class DBConfig:
+    """데이터베이스 설정 타입 정의"""
+
+    name: str = ""
+    host: str = ""
+    port: int = 0
+    dbname: str = ""
+    user: str = ""
+    password: str = ""
+
+    # 기본 데이터베이스 설정 목록 - 상수로 정의
+
+
+DB_CONFIGS: List[DBConfig] = [
+    DBConfig(
+        name="E-Commerce",
+        host="localhost",
+        port=55433,
+        dbname="postgres",
+        user="postgres",
+        password="postgres",
+    ),
+    DBConfig(
+        name="E-Commerce (Nonintuitive)",
+        host="localhost",
+        port=55434,
+        dbname="postgres",
+        user="postgres",
+        password="postgres",
+    ),
+    DBConfig(
+        name="Text2SQL",
+        host="localhost",
+        port=55432,
+        dbname="postgres",
+        user="postgres",
+        password="postgres",
+    ),
+]
 
 
 class AppState:
@@ -20,7 +64,7 @@ class AppState:
         """
         session_state: List[Message] 타입의 메시지 목록
         """
-        self._session_state = session_state # List[Message]
+        self._session_state = session_state  # List[Message]
 
         # 기본값 초기화
         self._init_default_values()
@@ -36,29 +80,19 @@ class AppState:
         if "available_models" not in self._session_state:
             self._session_state.available_models = []
 
+        # 현재 선택된 데이터베이스 인덱스 초기화 (기본값: 첫 번째 DB)
+        if "selected_db_index" not in self._session_state:
+            self._session_state.selected_db_index = 0
+
     # 메시지 관련 속성
     @property
     def messages(self) -> List[Message]:
-        """대화 메시지 목록
-
-        @property 데코레이터의 역할:
-        - 메서드를 속성처럼 접근할 수 있게 해줍니다.
-        - 외부에서는 state.messages와 같이 속성처럼 접근하지만, 내부적으로는 메서드가 호출됩니다.
-        - getter 역할을 수행하여 session_state의 값을 반환합니다.
-        - 이를 통해 데이터 접근에 대한 일관된 인터페이스를 제공합니다.
-        """
+        """대화 메시지 목록"""
         return self._session_state.messages
 
     @messages.setter
     def messages(self, value: List[Message]):
-        """대화 메시지 목록 설정
-
-        @messages.setter 데코레이터의 역할:
-        - 속성에 값을 할당할 때 호출되는 메서드를 정의합니다. (state.messages = [...] 형태로 사용)
-        - setter 역할을 수행하여 값을 검증하거나 변환한 후 session_state에 저장할 수 있습니다.
-        - property와 함께 사용하여 완전한 getter/setter 패턴을 구현합니다.
-        - 캡슐화를 제공하여 내부 구현 세부사항을 숨깁니다.
-        """
+        """대화 메시지 목록 설정"""
         self._session_state.messages = value
 
     def add_message(self, role: str, content: str) -> None:
@@ -89,6 +123,26 @@ class AppState:
     def available_models(self, value: List[str]):
         """사용 가능한 모델 목록 설정"""
         self._session_state.available_models = value
+
+    # 데이터베이스 관련 속성 및 메서드
+    @property
+    def selected_db_index(self) -> int:
+        """현재 선택된 데이터베이스 인덱스"""
+        return self._session_state.selected_db_index
+
+    @selected_db_index.setter
+    def selected_db_index(self, value: int):
+        """선택된 데이터베이스 인덱스 설정"""
+        self._session_state.selected_db_index = value
+
+    @property
+    def current_db_config(self) -> DBConfig:
+        """현재 선택된 데이터베이스 설정"""
+        index = self.selected_db_index
+        if 0 <= index < len(DB_CONFIGS):
+            return DB_CONFIGS[index]
+        # 기본값 반환 (첫 번째 DB)
+        return DB_CONFIGS[0]
 
     # 일반적인 세션 상태 접근 메서드
     def get(self, key: str, default: Optional[Any] = None) -> Any:

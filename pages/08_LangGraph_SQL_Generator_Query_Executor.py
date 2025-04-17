@@ -3,14 +3,16 @@ from typing import List, Any, Tuple
 
 # 커스텀 모듈 임포트
 from text2sql import AppState
-from text2sql.openai_utils import initialize_models, refresh_models
-from text2sql.db_utils import execute_query, get_all_tables, get_table_schema
+from text2sql.openai_utils import initialize_models
+from text2sql.db_utils import execute_query
 from text2sql.graphs.sql_graph import sql_graph
 from text2sql.components import (
     model_selector,
-    read_file_content,
     context_file_selector,
     display_query_results,
+    load_db_schema,
+    update_context_from_files,
+    db_schema_expander,
 )
 
 # 페이지 설정
@@ -31,48 +33,15 @@ def initialize_langgraph_state():
         state.set("sql_history", [])
     if not state.has("generated_sql"):
         state.set("generated_sql", "")
-    if not state.has("db_schema"):
-        state.set("db_schema", get_db_schema())
     if not state.has("context"):
         state.set("context", "")
     if not state.has("selected_context_files"):
         state.set("selected_context_files", [])
     if not state.has("llm_response"):
         state.set("llm_response", None)
-
-
-# 데이터베이스 스키마 정보를 가져오는 함수
-def get_db_schema():
-    schema_text = ""
-    tables = get_all_tables()
-    if tables:
-        for table in tables:
-            schema_text += f"\n테이블: {table}\n"
-
-            columns = get_table_schema(table)
-            if columns:
-                for col in columns:
-                    col_name = col[0]
-                    data_type = col[1]
-                    nullable = "NULL 허용" if col[2] == "YES" else "NOT NULL"
-                    schema_text += f"- {col_name} ({data_type}, {nullable})\n"
-
-    return schema_text
-
-
-# 컨텍스트 정보 업데이트 함수
-def update_context():
-    context = ""
-    selected_files = state.get("selected_context_files")
-
-    for file_path in selected_files:
-        # extras/ 이후의 경로만 표시
-        display_name = file_path.replace("extras/", "", 1)
-        content = read_file_content(file_path)
-        context += f"\n--- {display_name} ---\n{content}\n"
-
-    state.set("context", context)
-    return context
+    
+    # DB 스키마 로드 (공통 컴포넌트 사용)
+    load_db_schema(state)
 
 
 # SQL 실행 함수 (LangGraph의 EXECUTE_SQL 노드에서 사용)
@@ -80,7 +49,7 @@ def execute_sql_query(
     sql_query: str,
 ) -> Tuple[List[Tuple[Any, ...]] | None, str | None]:
     """SQL 쿼리를 실행하고 결과 및 오류를 반환"""
-    results, error = execute_query(sql_query)
+    results, error = execute_query(sql_query, state=state)
     return results, error
 
 
@@ -92,27 +61,15 @@ with st.sidebar:
     # 모델 선택기 컴포넌트 사용
     model_selector(state)
 
-    # DB 스키마 정보
-    with st.expander("데이터베이스 스키마 정보"):
-        # 데이터베이스 테이블 정보 동적으로 가져오기
-        if st.button("DB 스키마 다시 조회"):
-            with st.spinner("데이터베이스 스키마 정보를 조회중입니다..."):
-                refreshed_schema = get_db_schema()
-                if refreshed_schema:
-                    state.set("db_schema", refreshed_schema)
-                    st.success("스키마 정보가 업데이트되었습니다.")
-                    st.rerun()
-                else:
-                    st.error("데이터베이스 스키마를 가져오는데 실패했습니다.")
-
-        # 스키마 정보 표시
-        st.code(state.get("db_schema", ""))
+    # DB 스키마 정보 표시 (공통 컴포넌트 사용)
+    if db_schema_expander(state):
+        st.rerun()  # 스키마가 업데이트된 경우 페이지 새로고침
 
     # 추가 컨텍스트 파일 선택 UI 사용
     if context_file_selector(state):
         # 컨텍스트 적용 버튼
         if st.button("컨텍스트 적용"):
-            update_context()
+            update_context_from_files(state)
             st.success("추가 컨텍스트가 적용되었습니다.")
             st.rerun()
 
@@ -240,7 +197,7 @@ with tab2:
         else:
             # 쿼리 실행
             with st.spinner("쿼리 실행 중..."):
-                results, error = execute_query(sql_query)
+                results, error = execute_query(sql_query, state=state)
 
             # 오류 처리
             if error is not None:
